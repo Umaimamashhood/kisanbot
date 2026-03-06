@@ -1,7 +1,6 @@
 """
 app.py — KisanBot REST API (production ready)
 Run locally:  python app.py
-Deployed at:  https://kisanbot.onrender.com
 """
 
 import io
