@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KisanBot — Voice Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #0f1a0f;
+    --surface: #162316;
+    --card:    #1c2e1c;
+    --border:  #2a3f2a;
+    --green:   #4caf50;
+    --lime:    #8bc34a;
+    --gold:    #d4a843;
+    --text:    #e8f5e9;
+    --muted:   #7a9a7a;
+    --red:     #ef5350;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(76,175,80,.07) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(139,195,74,.05) 0%, transparent 50%);
+  }
+  .header { text-align: center; margin-bottom: 2rem; animation: fadeDown .6s ease; }
+  .header .icon { font-size: 3rem; display: block; margin-bottom: .4rem; animation: sway 4s ease-in-out infinite; }
+  @keyframes sway    { 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} }
+  @keyframes fadeDown{ from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fadeUp  { from{opacity:0;transform:translateY(20px)}  to{opacity:1;transform:translateY(0)} }
+  .header h1 { font-family:'Playfair Display',serif; font-size:2.4rem; color:var(--lime); }
+  .header p  { color:var(--muted); font-size:.88rem; margin-top:.3rem; font-weight:300; }
+  .lang-row {
+    display:flex; gap:.5rem; margin-bottom:1.8rem;
+    background:var(--surface); padding:5px; border-radius:50px; border:1px solid var(--border);
+  }
+  .lang-btn { padding:.45rem 1.4rem; border:none; background:transparent; color:var(--muted); border-radius:50px; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:.9rem; transition:all .2s; }
+  .lang-btn.active { background:var(--green); color:#fff; font-weight:500; }
+  .card {
+    width:100%; max-width:520px; background:var(--card);
+    border:1px solid var(--border); border-radius:20px; padding:2rem;
+    box-shadow:0 8px 40px rgba(0,0,0,.4); animation:fadeUp .5s ease;
+  }
+  .mic-wrap { display:flex; flex-direction:column; align-items:center; margin-bottom:1.8rem; }
+  .mic-btn {
+    width:110px; height:110px; border-radius:50%; border:3px solid var(--green);
+    background:var(--surface); cursor:pointer; font-size:2.8rem;
+    display:flex; align-items:center; justify-content:center;
+    transition:all .25s; box-shadow:0 0 0 0 rgba(76,175,80,.4);
+  }
+  .mic-btn:hover { transform:scale(1.06); border-color:var(--lime); box-shadow:0 0 20px rgba(76,175,80,.2); }
+  .mic-btn.recording { border-color:var(--red); background:rgba(239,83,80,.1); animation:ripple 1s ease-in-out infinite; }
+  @keyframes ripple { 0%{box-shadow:0 0 0 0 rgba(239,83,80,.5)} 100%{box-shadow:0 0 0 24px rgba(239,83,80,0)} }
+  .mic-btn.processing { border-color:var(--gold); }
+  .mic-hint { margin-top:.9rem; font-size:.82rem; color:var(--muted); text-align:center; }
+  .wave-bars { display:none; align-items:flex-end; justify-content:center; gap:3px; height:28px; margin-top:.6rem; }
+  .wave-bars.visible { display:flex; }
+  .wave-bars span { width:4px; background:var(--red); border-radius:2px; animation:wave .8s ease-in-out infinite; }
+  .wave-bars span:nth-child(1){animation-delay:0s;height:60%} .wave-bars span:nth-child(2){animation-delay:.1s;height:90%}
+  .wave-bars span:nth-child(3){animation-delay:.2s;height:50%} .wave-bars span:nth-child(4){animation-delay:.3s;height:80%}
+  .wave-bars span:nth-child(5){animation-delay:.1s;height:70%} .wave-bars span:nth-child(6){animation-delay:.25s;height:40%}
+  .wave-bars span:nth-child(7){animation-delay:.15s;height:85%}
+  @keyframes wave { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(.3)} }
+  .divider { display:flex; align-items:center; gap:.8rem; margin-bottom:1.2rem; color:var(--muted); font-size:.78rem; }
+  .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
+  .input-row { display:flex; gap:.5rem; margin-bottom:1.4rem; }
+  .q-input {
+    flex:1; padding:.75rem 1rem; background:var(--surface); border:1.5px solid var(--border);
+    border-radius:10px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:.9rem;
+    outline:none; transition:border-color .2s;
+  }
+  .q-input:focus { border-color:var(--green); }
+  .q-input::placeholder { color:var(--muted); }
+  .send-btn {
+    padding:.75rem 1.1rem; background:var(--green); border:none; border-radius:10px;
+    color:#fff; cursor:pointer; font-size:1.1rem; transition:all .2s; flex-shrink:0;
+  }
+  .send-btn:hover { background:var(--lime); transform:scale(1.05); }
+  .send-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+  .transcription {
+    background:rgba(212,168,67,.1); border:1px solid rgba(212,168,67,.3);
+    border-radius:8px; padding:.5rem .8rem; font-size:.8rem; color:var(--gold);
+    margin-bottom:.8rem; display:none;
+  }
+  .transcription.visible { display:block; }
+  .response-label { font-size:.72rem; color:var(--muted); font-weight:500; letter-spacing:.08em; text-transform:uppercase; margin-bottom:.5rem; }
+  .response-box {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:1.1rem 1.2rem; min-height:80px; font-size:.92rem; line-height:1.7; color:var(--text);
+  }
+  .response-box.empty { color:var(--muted); font-style:italic; font-size:.85rem; display:flex; align-items:center; justify-content:center; }
+  .play-row { display:flex; justify-content:flex-end; margin-top:.8rem; }
+  .play-audio-btn {
+    display:flex; align-items:center; gap:.4rem; padding:.4rem .9rem;
+    background:rgba(76,175,80,.15); border:1px solid var(--green); border-radius:20px;
+    color:var(--green); font-size:.78rem; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .2s;
+  }
+  .play-audio-btn:hover { background:rgba(76,175,80,.3); }
+  .source-tag { display:inline-block; font-size:.68rem; background:rgba(139,195,74,.12); color:var(--lime); padding:2px 8px; border-radius:10px; margin-right:4px; margin-top:6px; }
+  .status-row { display:flex; align-items:center; justify-content:center; gap:.4rem; margin-top:1.5rem; font-size:.75rem; color:var(--muted); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); }
+  .dot.green { background:var(--green); animation:blink 2s infinite; }
+  .dot.red   { background:var(--red); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .spin { display:inline-block; animation:sp .7s linear infinite; }
+  @keyframes sp { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="icon">🌾</span>
+  <h1>KisanBot</h1>
+  <p>Farming Voice Assistant — Pakistan</p>
+</div>
+
+<div class="lang-row">
+  <button class="lang-btn active" id="btn-en" onclick="setLang('en')">🇬🇧 English</button>
+  <button class="lang-btn"        id="btn-ur" onclick="setLang('ur')">🇵🇰 اردو</button>
+</div>
+
+<div class="card">
+  <div class="mic-wrap">
+    <button class="mic-btn" id="mic-btn" onclick="toggleMic()">🎤</button>
+    <p class="mic-hint" id="mic-hint">Press to ask a voice question</p>
+    <div class="wave-bars" id="wave">
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+
+  <div class="divider">or type your question</div>
+
+  <div class="input-row">
+    <input class="q-input" id="q-input" type="text"
+      placeholder="e.g. When to sow wheat?"
+      onkeydown="if(event.key==='Enter') sendText()"/>
+    <button class="send-btn" id="send-btn" onclick="sendText()">➤</button>
+  </div>
+
+  <div class="transcription" id="transcription"></div>
+
+  <div class="response-label">🤖 Response</div>
+  <div class="response-box empty" id="response-box">Answer will appear here…</div>
+
+  <div class="status-row">
+    <span class="dot" id="status-dot"></span>
+    <span id="status-text">Connecting to server…</span>
+  </div>
+</div>
+
+<script>
+// ── CHANGE THIS to your Render URL after deploying ──
+const API = 'https://kisanbot.onrender.com';
+
+let lang = 'en';
+let recording = false;
+let mediaRecorder = null;
+let chunks = [];
+
+function setLang(l) {
+  lang = l;
+  document.getElementById('btn-en').className = 'lang-btn' + (l==='en' ? ' active' : '');
+  document.getElementById('btn-ur').className = 'lang-btn' + (l==='ur' ? ' active' : '');
+  const inp = document.getElementById('q-input');
+  inp.dir         = l === 'ur' ? 'rtl' : 'ltr';
+  inp.placeholder = l === 'ur' ? 'مثال: گندم کی بوائی کب کریں؟' : 'e.g. When to sow wheat?';
+  document.getElementById('mic-hint').textContent =
+    l === 'ur' ? 'آواز سوال کے لیے دبائیں' : 'Press to ask a voice question';
+}
+
+async function checkServer() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    document.getElementById('status-dot').className = 'dot green';
+    document.getElementById('status-text').textContent =
+      `Connected · ${d.chunks_loaded} knowledge chunks loaded`;
+  } catch {
+    document.getElementById('status-dot').className = 'dot red';
+    document.getElementById('status-text').textContent = 'Server offline';
+  }
+}
+
+function setLoading(msg) {
+  const box = document.getElementById('response-box');
+  box.className = 'response-box empty';
+  box.innerHTML = `<span class="spin">⟳</span> &nbsp;${msg}`;
+}
+
+function showResponse(text, sources) {
+  const box = document.getElementById('response-box');
+  box.className = 'response-box';
+  box.dir = lang === 'ur' ? 'rtl' : 'ltr';
+  let html = `<div>${text}</div>`;
+  if (sources && sources.length)
+    html += '<div>' + sources.map(s => `<span class="source-tag">📄 ${s}</span>`).join('') + '</div>';
+  box.innerHTML = html;
+}
+
+function showResponseWithAudio(text, sources, audioBlob) {
+  showResponse(text, sources);
+  const url = URL.createObjectURL(audioBlob);
+  document.getElementById('response-box').innerHTML +=
+    `<div class="play-row">
+       <button class="play-audio-btn" onclick="new Audio('${url}').play()">▶ Play Answer</button>
+     </div>`;
+  setTimeout(() => new Audio(url).play().catch(() => {}), 300);
+}
+
+async function sendText() {
+  const inp = document.getElementById('q-input');
+  const q   = inp.value.trim();
+  if (!q) return;
+
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('transcription').className = 'transcription';
+  setLoading('Thinking…');
+
+  try {
+    const r1 = await fetch(`${API}/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, language: lang, audio: false })
+    });
+    const d = await r1.json();
+    if (d.error) { showResponse('⚠️ ' + d.error, []); return; }
+
+    setLoading('Generating audio…');
+    const r2 = await fetch(`${API}/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, language: lang, audio: true })
+    });
+    const blob = await r2.blob();
+    showResponseWithAudio(d.answer, d.sources || [], blob);
+  } catch {
+    showResponse('⚠️ Could not connect to server.', []);
+  }
+
+  inp.value = '';
+  document.getElementById('send-btn').disabled = false;
+}
+
+async function toggleMic() {
+  recording ? stopRecording() : startRecording();
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    chunks = [];
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    mediaRecorder.onstop = sendVoice;
+    mediaRecorder.start();
+    recording = true;
+    document.getElementById('mic-btn').className   = 'mic-btn recording';
+    document.getElementById('mic-btn').textContent = '⏹';
+    document.getElementById('mic-hint').textContent = lang === 'ur' ? 'روکنے کے لیے دبائیں' : 'Press to stop recording';
+    document.getElementById('wave').className = 'wave-bars visible';
+    document.getElementById('transcription').className = 'transcription';
+  } catch {
+    alert('Microphone permission denied. Please allow microphone access.');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  }
+  recording = false;
+  document.getElementById('mic-btn').className   = 'mic-btn processing';
+  document.getElementById('mic-btn').textContent = '⟳';
+  document.getElementById('mic-hint').textContent = lang === 'ur' ? 'پروسیس ہو رہا ہے…' : 'Processing…';
+  document.getElementById('wave').className = 'wave-bars';
+}
+
+async function sendVoice() {
+  if (!chunks.length) { resetMicBtn(); return; }
+  setLoading('Transcribing your voice…');
+
+  const formData = new FormData();
+  formData.append('audio', new Blob(chunks, { type: 'audio/webm' }), 'question.webm');
+  formData.append('language', lang);
+
+  try {
+    const r1 = await fetch(`${API}/ask-voice`, { method: 'POST', body: formData });
+    const d  = await r1.json();
+    if (d.error) { showResponse('⚠️ ' + d.error, []); resetMicBtn(); return; }
+
+    const pill = document.getElementById('transcription');
+    pill.textContent = '🎤 ' + d.transcription;
+    pill.className   = 'transcription visible';
+
+    setLoading('Generating audio…');
+    const r2 = await fetch(`${API}/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: d.transcription, language: lang, audio: true })
+    });
+    const blob = await r2.blob();
+    showResponseWithAudio(d.answer, d.sources || [], blob);
+  } catch {
+    showResponse('⚠️ Could not connect to server.', []);
+  }
+  resetMicBtn();
+}
+
+function resetMicBtn() {
+  document.getElementById('mic-btn').className   = 'mic-btn';
+  document.getElementById('mic-btn').textContent = '🎤';
+  document.getElementById('mic-hint').textContent =
+    lang === 'ur' ? 'آواز سوال کے لیے دبائیں' : 'Press to ask a voice question';
+}
+
+checkServer();
+setInterval(checkServer, 15000);
+</script>
+</body>
+</html>
