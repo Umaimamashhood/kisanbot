@@ -1,0 +1,15 @@
+flask
+flask-cors
+python-dotenv
+groq
+pdfplumber
+PyPDF2
+langdetect
+deep-translator
+edge-tts
+faiss-cpu
+sentence-transformers
+numpy
+gunicorn
+google-auth
+google-api-python-client
