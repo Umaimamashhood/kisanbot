@@ -2,7 +2,7 @@
 app.py — KisanBot REST API
 Features: Memory per user, Google Drive PDF sync, Bilingual voice
 Run: python app.py
-UI:  http://127.0.0.1:5000/ui
+UI:  http://127.0.0.1:5000
 """
 
 import io
@@ -18,7 +18,7 @@ import pdf_loader
 import voice_assistant as va
 import memory
 
-# Try to sync from Google Drive at startup (won't fail if not configured)
+# Try to sync from Google Drive at startup
 try:
     import drive_loader
     drive_loader.sync_drive_pdfs()
@@ -59,10 +59,10 @@ def ask():
       question  str   — question in English or Urdu
       language  str   — 'en' | 'ur' (auto-detected if omitted)
       audio     bool  — true to receive MP3 back
-      user_id   str   — user ID from integrated app (optional, default: anonymous)
+      user_id   str   — user ID from integrated app
     """
-    data     = request.get_json(silent=True) or {}
-    question = (data.get("question") or "").strip()
+    data       = request.get_json(silent=True) or {}
+    question   = (data.get("question") or "").strip()
     if not question:
         return jsonify(error="'question' is required"), 400
 
@@ -70,7 +70,13 @@ def ask():
     want_audio = bool(data.get("audio", False))
     user_id    = data.get("user_id", "anonymous")
 
+    # Get answer from AI
     text = va.answer(question, language, user_id)
+
+    # Save to memory ONLY on text call (not audio call) to avoid duplicates
+    if not want_audio:
+        memory.add_message(user_id, "user", question, language)
+        memory.add_message(user_id, "assistant", text, language)
 
     if want_audio:
         mp3 = va.text_to_speech(text, language)
@@ -101,6 +107,11 @@ def ask_voice():
         return jsonify(error="Could not understand audio, please try again."), 422
 
     text = va.answer(transcription, language, user_id)
+
+    # Save to memory once
+    memory.add_message(user_id, "user", transcription, language)
+    memory.add_message(user_id, "assistant", text, language)
+
     return jsonify(transcription=transcription, answer=text,
                    language=language, user_id=user_id)
 

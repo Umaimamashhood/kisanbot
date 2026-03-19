@@ -11,7 +11,6 @@ import asyncio
 import tempfile
 
 from groq import Groq
-from gtts import gTTS
 import edge_tts
 from langdetect import detect, LangDetectException
 from deep_translator import GoogleTranslator
@@ -55,21 +54,20 @@ def detect_language(text: str) -> str:
 def answer(question: str, language: str, user_id: str = "anonymous") -> str:
     """
     Answer with full conversation memory.
-    user_id comes from the integrated app.
+    Memory saving is handled by app.py — not here.
     """
-    # Translate Urdu → English for better PDF search
     search_q = GoogleTranslator(source="ur", target="en").translate(question) if language == "ur" else question
     context  = pdf_loader.search(search_q) or "No specific documents available."
 
-    # Save user question to memory
-    memory.add_message(user_id, "user", question, language)
-
-    # Build messages: system + full history
+    # Load existing history for context
     history = memory.get_history(user_id)
 
+    # Add current question to messages (but don't save yet — app.py handles saving)
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT[language].format(context=context)}
-    ] + history  # history already includes the current question
+    ] + history + [
+        {"role": "user", "content": question}
+    ]
 
     resp = _client.chat.completions.create(
         model=_model,
@@ -77,12 +75,7 @@ def answer(question: str, language: str, user_id: str = "anonymous") -> str:
         temperature=0.3,
         max_tokens=500,
     )
-    answer_text = resp.choices[0].message.content.strip()
-
-    # Save assistant answer to memory
-    memory.add_message(user_id, "assistant", answer_text, language)
-
-    return answer_text
+    return resp.choices[0].message.content.strip()
 
 
 def text_to_speech(text: str, language: str) -> bytes:
