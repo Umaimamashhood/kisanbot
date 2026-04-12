@@ -1,20 +1,28 @@
-# 🌾 KisanBot — Bilingual Farming Voice Assistant API
+# 🌾 KisanBot v2 — Bilingual Farming Voice Assistant API
 
-A free, production-ready AI voice assistant for Pakistani farmers.
-Answers farming questions in **English and Urdu** using a PDF knowledge base, spoken aloud.
+> A free, AI-powered REST API for Pakistani farmers. Supports **English and Urdu**, answers farming questions from PDFs stored on **Google Drive** using **FAISS vector search**, remembers **full conversation history** per user, and responds in **spoken audio**.
 
 ---
 
 ## 📌 Project Summary
 
-KisanBot is a **REST API** that:
-- Accepts text or voice questions from farmers
-- Searches a PDF knowledge base using **FAISS vector search**
-- Generates answers using **Groq Llama 3.3** (free)
-- Returns answers as text + **spoken audio (base64 MP3)**
-- Supports **English and Urdu** fully
+KisanBot is a voice-based question-answering system designed for farmers in Pakistan. It is built as a **REST API** that can be integrated into any mobile app, website, or platform. Users from the integrated app send their `user_id` with each request, and KisanBot remembers their full conversation history.
 
-It can be integrated into any mobile app, web app, WhatsApp bot, or any other platform.
+PDFs are stored on **Google Drive** — when the server starts, it automatically downloads all PDFs from the Drive folder and loads them into the knowledge base. Images inside PDFs are automatically ignored — only text is extracted.
+
+---
+
+## 🚀 What's New in v2
+
+| Feature | v1 | v2 |
+|---------|----|----|
+| User memory per user | ❌ | ✅ Full history in SQLite |
+| Google Drive PDF sync | ❌ | ✅ Auto sync at startup |
+| Images in PDFs | ❌ | ✅ Auto ignored |
+| Strict language replies | ❌ | ✅ No mixing English/Urdu |
+| Duplicate memory fix | ❌ | ✅ Saves only once per question |
+| FAISS vector search | ✅ | ✅ With keyword fallback |
+| Bilingual voice | ✅ | ✅ |
 
 ---
 
@@ -22,293 +30,244 @@ It can be integrated into any mobile app, web app, WhatsApp bot, or any other pl
 
 ```
 kisanbot/
-├── .env                  ← API keys (never commit this)
-├── .gitignore
-├── app.py                ← Flask REST API
-├── voice_assistant.py    ← STT + TTS + AI answer logic
-├── pdf_loader.py         ← PDF parsing + FAISS vector search
-├── requirements.txt      ← All dependencies
-├── Procfile              ← For Render/Railway deployment
+├── .env                    ← API keys and Drive folder ID (not on GitHub)
+├── .gitignore              ← protects secrets
+├── app.py                  ← Flask REST API (7 endpoints)
+├── voice_assistant.py      ← STT, TTS, AI with memory
+├── pdf_loader.py           ← PDF text extraction + FAISS search
+├── memory.py               ← SQLite conversation history per user
+├── drive_loader.py         ← Google Drive PDF sync
+├── requirements.txt        ← all dependencies
+├── service_account.json    ← Google service account (never upload!)
 ├── templates/
-│   └── kisanbot_ui.html  ← Browser voice interface
+│   └── kisanbot_ui.html    ← browser UI for testing
 └── data/
-    └── farming_qa.pdf    ← Farming knowledge base
+    ├── .gitkeep            ← keeps folder in git
+    ├── memory.db           ← auto-created SQLite database (not on GitHub)
+    └── *.pdf               ← PDFs downloaded from Drive (not on GitHub)
 ```
 
 ---
 
-## ⚙️ Tech Stack
+## ⚙️ Tech Stack (All Free)
 
-| Layer | Tool | Cost |
-|-------|------|------|
-| LLM | Groq Llama 3.3 70B | Free |
-| Speech to Text | Groq Whisper Large v3 Turbo | Free |
-| Text to Speech | edge-tts — Microsoft Neural voices | Free |
-| Vector Embeddings | sentence-transformers (runs locally) | Free |
-| Vector Search | FAISS (Facebook AI Similarity Search) | Free |
-| PDF Parsing | pdfplumber + PyPDF2 | Free |
-| Translation | deep-translator (Google) | Free |
-| Language Detection | langdetect | Free |
-| Web Server | Flask + Gunicorn | Free |
+| Layer | Tool |
+|-------|------|
+| LLM (AI answers) | Groq — Llama 3.3 70B |
+| Speech to Text | Groq Whisper Large v3 Turbo |
+| Text to Speech | edge-tts (Microsoft Neural voices) |
+| Vector Embeddings | sentence-transformers (local) |
+| Vector Search | FAISS (Facebook AI) |
+| PDF Text Extraction | pdfplumber + PyPDF2 |
+| Conversation Memory | SQLite (local database) |
+| Translation | deep-translator |
+| Language Detection | langdetect |
+| PDF Storage | Google Drive |
+| Backend | Flask |
 
 ---
 
-## 🚀 Local Setup
+## 🔌 API Endpoints
 
-### 1. Install dependencies
+### `GET /health` — Server status
+```json
+{
+  "status": "ok",
+  "version": "2.0",
+  "model": "llama-3.3-70b-versatile",
+  "chunks_loaded": 12,
+  "supported_languages": ["en", "ur"],
+  "features": ["memory", "google_drive", "voice", "bilingual"]
+}
+```
+
+### `POST /ask` — Text question
+```json
+Request:
+{
+  "question": "When to sow wheat?",
+  "language": "en",
+  "audio": false,
+  "user_id": "user_123"
+}
+
+Response:
+{
+  "answer": "The best time to sow wheat in Pakistan is October 15 to November 15...",
+  "language": "en",
+  "user_id": "user_123"
+}
+```
+> Set `"audio": true` to receive MP3 spoken answer.
+
+### `POST /ask-voice` — Voice question
+```
+Form data:
+  audio    → audio file (WebM, WAV, MP3)
+  language → "en" or "ur"
+  user_id  → user ID from integrated app
+
+Response:
+{
+  "transcription": "When to sow wheat?",
+  "answer": "The best time to sow wheat...",
+  "language": "en",
+  "user_id": "user_123"
+}
+```
+
+### `GET /history/<user_id>` — Get chat history
+```json
+{
+  "user_id": "user_123",
+  "total": 4,
+  "history": [
+    {"role": "user", "content": "When to sow wheat?"},
+    {"role": "assistant", "content": "Sow wheat between October 15..."},
+    {"role": "user", "content": "What fertilizer should I use?"},
+    {"role": "assistant", "content": "Apply DAP at sowing time..."}
+  ]
+}
+```
+
+### `DELETE /history/<user_id>` — Clear chat history
+```json
+{
+  "message": "History cleared for user 'user_123'"
+}
+```
+
+### `POST /sync-drive` — Sync PDFs from Google Drive
+```json
+{
+  "message": "Drive sync complete",
+  "chunks_loaded": 24
+}
+```
+
+### `POST /upload-pdf` — Upload PDF directly
+```
+Form data:
+  pdf → any farming PDF file
+```
+
+---
+
+## 🧠 How It Works
+
+```
+User speaks/types question  +  user_id
+            ↓
+Groq Whisper  →  converts voice to text
+            ↓
+langdetect   →  detects English or Urdu
+            ↓
+memory.py    →  loads full conversation history
+            ↓
+FAISS Search →  finds relevant PDF chunks from Drive
+            ↓
+Groq Llama   →  generates answer in detected language only
+            ↓
+memory.py    →  saves question + answer to SQLite (once)
+            ↓
+edge-tts     →  converts answer to speech
+            ↓
+User hears + sees the answer
+```
+
+---
+
+## 🧠 How Memory Works
+
+- Every conversation is saved in `data/memory.db` (SQLite)
+- Memory is saved per `user_id` sent by the integrated app
+- KisanBot does NOT handle login — the app handles login and sends `user_id`
+- Full conversation history is loaded with every request so AI remembers context
+- Currently during local testing, all conversations save under `"anonymous"` (default)
+- When integrated with real app, each user gets their own separate memory
+
+---
+
+## ☁️ How Google Drive Works
+
+- A Google Cloud Service Account is created with read-only Drive access
+- Farming PDFs are uploaded to a specific Google Drive folder
+- That folder is shared with the service account email
+- At server startup, all PDFs are automatically downloaded to `data/` folder
+- FAISS vector search indexes all PDF text for retrieval
+- Images in PDFs are automatically ignored — only text extracted
+- Add new PDFs to Drive anytime → call `POST /sync-drive` to load them
+
+---
+
+## 🚀 Run Locally
+
+### 1. Clone and install
 ```bash
-pip install flask flask-cors python-dotenv groq pdfplumber PyPDF2 langdetect deep-translator edge-tts faiss-cpu sentence-transformers numpy gunicorn
+git clone https://github.com/Umaimamashhood/kisanbot.git
+cd kisanbot
+pip install -r requirements.txt
 ```
 
 ### 2. Configure .env
 ```env
-GROQ_API_KEY=your_groq_api_key_here     # free at console.groq.com
+GROQ_API_KEY=your_groq_key_from_console.groq.com
 GROQ_MODEL=llama-3.3-70b-versatile
-API_KEY=                                 # optional: protects your API
-PORT=5000
-FLASK_DEBUG=false
+DRIVE_FOLDER_ID=your_google_drive_folder_id
 ```
 
-### 3. Add PDFs to data/ folder
-Drop any farming PDF into `data/`. The included `farming_qa.pdf` covers 50+ Q&As.
+### 3. Setup Google Drive (one time)
+1. Go to **console.cloud.google.com**
+2. Create project → Enable **Google Drive API**
+3. Create **Service Account** → download JSON key
+4. Rename to `service_account.json` → place in kisanbot folder
+5. Share your Drive folder with the service account email
+6. Copy folder ID from Drive URL → paste in `.env`
 
 ### 4. Run
 ```bash
 python app.py
 ```
 
-### 5. Open UI
-```
-http://127.0.0.1:5000
-```
-
 ---
 
-## 🔌 API Reference
+## 🔧 Integration Example
 
-### Authentication (optional)
-If `API_KEY` is set in `.env`, include this header in every request:
-```
-X-API-Key: your_api_key_here
-```
-
----
-
-### GET /health
-Check server status.
-```json
-{
-  "status": "ok",
-  "model": "llama-3.3-70b-versatile",
-  "chunks_loaded": 42,
-  "auth_enabled": false
-}
-```
-
----
-
-### POST /ask — Text question
-**Request:**
-```json
-{
-  "question": "When should I sow wheat?",
-  "language": "en",
-  "audio": true
-}
-```
-**Response:**
-```json
-{
-  "answer": "The best sowing time for wheat is October 15 to November 15...",
-  "language": "en",
-  "audio_b64": "//NExAA...base64 MP3 data...",
-  "audio_mime": "audio/mpeg"
-}
-```
-
-**Play audio in JavaScript:**
 ```javascript
-const audio = new Audio("data:audio/mpeg;base64," + response.audio_b64);
-audio.play();
-```
-
----
-
-### POST /ask-voice — Voice question
-**Request (multipart form):**
-```
-audio    → audio file (WebM/WAV/MP3)
-language → "en" or "ur"
-audio    → "1" to get audio response
-```
-**Response:**
-```json
-{
-  "transcription": "When should I sow wheat?",
-  "answer": "The best sowing time is October 15 to November 15...",
-  "language": "en",
-  "audio_b64": "//NExAA...base64 MP3...",
-  "audio_mime": "audio/mpeg"
-}
-```
-
----
-
-### POST /upload-pdf
-Add a new PDF to the live knowledge base.
-```
-Form data: pdf → PDF file
-```
-```json
-{
-  "message": "'guide.pdf' added to knowledge base.",
-  "chunks_loaded": 56
-}
-```
-
----
-
-## 🧠 How the RAG Pipeline Works
-
-```
-User speaks or types
-       ↓
-[Groq Whisper]        audio → text transcription
-       ↓
-[langdetect]          detect English or Urdu
-       ↓
-[deep-translator]     Urdu → English for better search
-       ↓
-[sentence-transformers]  question → vector embedding
-       ↓
-[FAISS]               search PDF chunks → top 4 relevant
-       ↓
-[Groq Llama 3.3]      generate answer from context
-       ↓
-[edge-tts]            answer text → MP3 audio
-       ↓
-JSON response: answer text + base64 audio
-```
-
----
-
-## 🌍 Integration Guide
-
-KisanBot returns standard JSON — integrate into anything.
-
-### React / Web App
-```javascript
-const res = await fetch("https://your-api.onrender.com/ask", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ question: "گندم کب بوئیں؟", language: "ur", audio: true })
+const response = await fetch('http://your-api/ask', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    question: 'When to sow wheat?',
+    language: 'en',
+    user_id: currentUser.id
+  })
 });
-const data = await res.json();
-
-// Show answer text
+const data = await response.json();
 console.log(data.answer);
-
-// Play audio
-const audio = new Audio("data:audio/mpeg;base64," + data.audio_b64);
-audio.play();
-```
-
-### Android App (Kotlin)
-```kotlin
-val body = JSONObject()
-body.put("question", "When to sow wheat?")
-body.put("language", "en")
-body.put("audio", true)
-
-// Parse response
-val audioBytes = Base64.decode(response.getString("audio_b64"), Base64.DEFAULT)
-// Play with MediaPlayer
-```
-
-### WhatsApp Bot
-```python
-response = requests.post("https://your-api.onrender.com/ask-voice",
-    files={"audio": open("voice_note.ogg", "rb")},
-    data={"language": "ur"}
-)
-reply_text = response.json()["answer"]
-```
-
-### With API Key
-```javascript
-headers: {
-  "Content-Type": "application/json",
-  "X-API-Key": "your_secret_key"
-}
 ```
 
 ---
 
-## ☁️ Deployment — Render.com (Free)
+## 🌍 Language Support
 
-### Step 1 — Push to GitHub
-```bash
-git init
-git add .
-git commit -m "KisanBot"
-git remote add origin https://github.com/yourusername/kisanbot.git
-git push -u origin main
-```
-
-### Step 2 — Deploy on Render
-1. Go to https://render.com → Sign up free
-2. New → Web Service → Connect GitHub repo
-3. Set:
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120`
-4. Add Environment Variables:
-   - `GROQ_API_KEY` = your key
-   - `GROQ_MODEL` = llama-3.3-70b-versatile
-   - `API_KEY` = any secret string you choose
-5. Click **Deploy**
-
-Your live API URL:
-```
-https://kisanbot.onrender.com/health
-```
-
-### Alternative — Railway.app
-1. Go to https://railway.app → New Project → GitHub repo
-2. Add same environment variables
-3. Auto-deploys using the `Procfile`
+| Feature | English | Urdu |
+|---------|---------|------|
+| Type question | ✅ | ✅ |
+| Speak question | ✅ | ✅ |
+| AI answer (strict language) | ✅ English only | ✅ Urdu only |
+| Spoken reply | ✅ en-US-AriaNeural | ✅ ur-PK-UzmaNeural |
+| PDF text extraction | ✅ | ✅ |
+| Auto language detect | ✅ | ✅ |
 
 ---
 
-## ✅ Integration Checklist
+## ⚠️ Security Notes
 
-| Feature | Status |
-|---------|--------|
-| REST API with JSON responses | ✅ |
-| Voice input — Speech to Text | ✅ Groq Whisper |
-| Voice output — Text to Speech | ✅ edge-tts Urdu + English |
-| Bilingual English + Urdu | ✅ |
-| PDF knowledge base | ✅ |
-| FAISS vector search | ✅ |
-| API key authentication | ✅ |
-| CORS enabled for any client | ✅ |
-| Base64 audio in JSON | ✅ Easy to integrate |
-| Production server gunicorn | ✅ |
-| Free cloud deployment | ✅ Render / Railway |
-| Debug mode off in production | ✅ |
+- **Never upload** `service_account.json` or `.env` to GitHub
+- Both are in `.gitignore` for protection
+- Real API keys stay on your local machine only
 
 ---
 
-## ❓ Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| model decommissioned error | Set `GROQ_MODEL=llama-3.3-70b-versatile` in `.env` |
-| Server offline in browser | Go to `http://127.0.0.1:5000` not the HTML file |
-| Microphone blocked | Allow mic: `chrome://settings/content/microphone` |
-| Urdu not speaking | `pip install edge-tts` |
-| Audio not playing in app | Decode base64 and play as `audio/mpeg` |
-| 401 Unauthorized | Pass `X-API-Key` header with your key |
-
----
-
-*Built for Pakistani farmers. All tools are completely free.*
+*Built with ❤️ for Pakistani farmers. Powered entirely by free AI tools.*
